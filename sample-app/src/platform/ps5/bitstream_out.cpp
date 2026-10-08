@@ -260,7 +260,7 @@ void BitstreamPlayer::run()
             grain[2] = 0x1F; // Pb 0x4E1F
             grain[3] = 0x4E;
         }
-        const int grains = ms * carrier.sample_rate / 1000 / carrier.grain_frames;
+        const int grains = ms * carrier.frame_rate() / 1000 / carrier.grain_frames;
         for (int i = 0; i < grains; ++i)
             sceAudioOutOutput(handle, grain.data());
     };

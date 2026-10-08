@@ -45,6 +45,9 @@ struct Carrier
     int sample_rate = 0;      // the port's rate, 48 kHz, 192 kHz or 768 kHz
     bool sys = false;         // open with sceAudioOutSysOpen / SysConfigureOutput (its own mode table)
     int frame_bytes = 4;      // bytes per port frame (stereo S16 = 4, 8-channel S16 = 16)
+    // Port frames per second as the port really consumes them. The 768 kHz port is a
+    // stereo-rate label: its 16-byte frames are taken at 192 kHz (a 16384-byte grain blocks 5.3 ms).
+    int frame_rate() const { return frame_bytes == 16 && sample_rate == 768000 ? 192000 : sample_rate; }
 };
 Carrier carrier_for(Codec codec);
 
