@@ -19,6 +19,7 @@ It runs as an ordinary sandboxed app. It doesn't need a sandbox escape or any ke
 | `ac3-5.1-448k.ac3` | Dolby Digital 5.1 | 0, 48 kHz | plays, receiver decodes |
 | `dts-5.1-768k.dts` | DTS 5.1 (core) | 2, 48 kHz | plays, receiver decodes |
 | `dtshd-5.1.dtshd` | DTS-HD 5.1 | 4, 192 kHz | sent as DTS-HD (receiver result pending) |
+| `truehd-5.1.thd` | Dolby TrueHD 5.1 | Sys 5, 768 kHz | plays; the receiver shows "Dolby Audio" |
 | `eac3-5.1-640k.eac3` | Dolby Digital Plus 5.1 | 3, 192 kHz | plays, receiver decodes |
 | `pcm-2.0.wav` | Linear PCM Stereo | 5, 48 kHz | plays uncompressed |
 | `pcm-5.1.wav` | Linear PCM 5.1 Surround | 6, 48 kHz | plays uncompressed |
@@ -81,7 +82,7 @@ Install: copy `dist/PPSA99051.ffpfsc` to `/data/homebrew/` on the console (FTP) 
 
 ### Adding your own clips
 
-Put elementary-stream and audio files (`.ac3`, `.eac3`, `.dts`, `.dtshd`, `.aac`, `.wav`) in `assets/clips/` and list them in `index.txt`. The console can't list folders under `/app0`, so the index is required. Clips cut from files you don't own go in `local-*` names and `index.local.txt`, which git ignores:
+Put elementary-stream and audio files (`.ac3`, `.eac3`, `.dts`, `.dtshd`, `.aac`, `.thd`, `.wav`) in `assets/clips/` and list them in `index.txt`. The console can't list folders under `/app0`, so the index is required. Clips cut from files you don't own go in `local-*` names and `index.local.txt`, which git ignores:
 
 ```bash
 ATMOS_SOURCE="some Atmos file.mp4" ../tools/make-clips.sh   # cuts local-atmos.eac3

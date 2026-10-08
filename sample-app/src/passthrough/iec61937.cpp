@@ -206,7 +206,7 @@ Carrier carrier_for(Codec codec)
     case Codec::eac3:
         return {3, 1024, 192000};
     case Codec::truehd:
-        return {}; // no ExConfigureOutput mode carries TrueHD (mode 9 = LPCM, 4 = DTS-HD HR, 10 = Atmos JOC; hw 2026-10-09)
+        return {5, 1024, 768000, true, 16}; // SysOpen mode 5: the 768 kHz 8-channel port; SysConfigureOutput mode 5 is MAT
     case Codec::pcm2:
         return {5, 256, 48000};
     case Codec::pcm6:

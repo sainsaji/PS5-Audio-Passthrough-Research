@@ -42,7 +42,9 @@ struct Carrier
 {
     int mode = -1;            // sceAudioOutExOpen / ExConfigureOutput mode
     int grain_frames = 0;     // stereo frames per sceAudioOutOutput call
-    int sample_rate = 0;      // the port's rate, 48 kHz or 192 kHz
+    int sample_rate = 0;      // the port's rate, 48 kHz, 192 kHz or 768 kHz
+    bool sys = false;         // open with sceAudioOutSysOpen / SysConfigureOutput (its own mode table)
+    int frame_bytes = 4;      // bytes per port frame (stereo S16 = 4, 8-channel S16 = 16)
 };
 Carrier carrier_for(Codec codec);
 

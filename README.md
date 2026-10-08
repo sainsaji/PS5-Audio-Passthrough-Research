@@ -20,7 +20,7 @@ This repo has the recipe, a working sample app, how it was found, what failed on
 | DTS 5.1 (core) | 2 | 256 @ 48 kHz | **works** |
 | Dolby Digital Plus (E-AC-3) 5.1 | 3 | 1024 @ 192 kHz | **works** |
 | Dolby Digital Plus with Atmos | 3 | 1024 @ 192 kHz | **plays** (the receiver's Atmos indicator not yet checked) |
-| Dolby TrueHD 5.1 | none | - | **not possible**: no console mode carries TrueHD (see findings, item 14) |
+| Dolby TrueHD 5.1 | Sys 5 | 1024 @ 768 kHz, 8ch | **plays** (MAT framing, console log `BITSTREAM MAT`; the receiver shows "Dolby Audio") |
 | DTS-HD 5.1 | 4 | 1024 @ 192 kHz | sent as DTS-HD (Type IV framing, 8192-byte bursts); the console labels mode 4 "DTS-HD HR" |
 | Linear PCM 2ch (stereo) | 5 | 256 @ 48 kHz | **works** (S16 stereo) |
 | Linear PCM 6ch (5.1 surround) | 6 | 256 @ 48 kHz | **works** (mapped to S16 8-channel port) |
@@ -99,7 +99,7 @@ From the disassembly of `libSceAudioOut` (FW 12.70):
 | 10 | Sony code `0xF3`, 7.1 | 1024 @ 192 kHz | Dolby Atmos (console log: `BITSTREAM DDPLUS_JOC`) |
 | 0xFF | reset to normal | | works |
 
-DTS-HD (mode 4) uses Type IV preambles (subtype 2, 2048 repetition period, 8192-byte bursts) over the 1024-grain @ 192 kHz carrier. No mode carries Dolby TrueHD: mode 9 logs `BITSTREAM LPCM`, and 4 and 10 are DTS-HD and Atmos. Linear PCM modes 5 and 6 are configured with `sceAudioOutExConfigureOutput` while streaming uncompressed audio via standard ports.
+DTS-HD (mode 4) uses Type IV preambles (subtype 2, 2048 repetition period, 8192-byte bursts) over the 1024-grain @ 192 kHz carrier. Dolby TrueHD is not on the Ex modes (mode 9 logs `BITSTREAM LPCM`, 4 and 10 are DTS-HD and Atmos); it uses `sceAudioOutSysOpen(0xFF, 5)` (a 768 kHz port) and `sceAudioOutSysConfigureOutput(1, 0, 5, 1, 0)`, which Sony's Blu-ray player uses. Linear PCM modes 5 and 6 are configured with `sceAudioOutExConfigureOutput` while streaming uncompressed audio via standard ports.
 
 ---
 
@@ -136,6 +136,6 @@ No Sony binaries or Dolby/DTS sample content are included, only notes, offsets, 
 
 ## Open questions
 
-- Dolby TrueHD: whether any route carries it (no `ExConfigureOutput` mode does; the Settings menu reaches it through console-side encoding).
+- Dolby TrueHD: why the receiver shows "Dolby Audio" instead of "Dolby TrueHD" (the MAT framing is simplified), and the Atmos path (mode 10 is E-AC-3 JOC; MAT Atmos is untried).
 - Does the receiver light its Atmos indicator for the Dolby Digital Plus Atmos clip?
 - A/V sync: the receiver adds its own decode delay, which a video player has to account for.

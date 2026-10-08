@@ -21,6 +21,10 @@ extern "C"
     int sceAudioOutOpen(int user, int type, int index, unsigned int grain_frames,
                         unsigned int frequency, unsigned int format);
     int sceAudioOutClose(int handle);
+    int sceAudioOutSysOpen(int user, int mode);   // MGkAS4ncQ90
+    int sceAudioOutSysClose(int handle);          // pKY2S4K-6Mg
+    int sceAudioOutSysConfigureOutput(int type, unsigned flags, int mode, int target,
+                                      std::uint64_t opt); // ktdp5iauPQc
     int sceAudioOutOutput(int handle, const void *samples);
     int sceAudioOutExOpen(int user, int mode);                                        // 6X6dp+07h4U
     int sceAudioOutExClose(int handle);                                               // 0TfjSulCV2A
@@ -192,6 +196,12 @@ void BitstreamPlayer::run()
     {
         handle = sceAudioOutOpen(kSystemUser, 0, 0, carrier.grain_frames, carrier.sample_rate, 2 /* S16 8CH */);
     }
+    else if (carrier.sys)
+    {
+        // The system open: its own mode table, including the 768 kHz port
+        // Sony's Blu-ray player uses for Dolby TrueHD.
+        handle = sceAudioOutSysOpen(kSystemUser, carrier.mode);
+    }
     else
     {
         if (api.open == nullptr || api.close == nullptr || api.configure == nullptr)
@@ -203,7 +213,8 @@ void BitstreamPlayer::run()
     }
 
     open_rc_.store(handle);
-    sys::log("[PT] open(mode %d) = 0x%08x", carrier.mode, static_cast<unsigned>(handle));
+    sys::log("[PT] %sOpen(mode %d) = 0x%08x", carrier.sys ? "Sys" : "", carrier.mode,
+             static_cast<unsigned>(handle));
     if (handle < 0)
     {
         fail("could not open audio port");
@@ -214,14 +225,17 @@ void BitstreamPlayer::run()
     int config = 0;
     if (api.configure != nullptr)
     {
-        config = api.configure(0, 0, carrier.mode, kTargetHdmi, 0);
+        config = carrier.sys ? sceAudioOutSysConfigureOutput(1 /* type: HDMI */, 0, carrier.mode, kTargetHdmi, 0)
+                             : api.configure(0, 0, carrier.mode, kTargetHdmi, 0);
         config_rc_.store(config);
-        sys::log("[PT] ExConfigureOutput(mode %d, target %d) = 0x%08x", carrier.mode, kTargetHdmi,
-                 static_cast<unsigned>(config));
+        sys::log("[PT] %sConfigureOutput(mode %d, target %d) = 0x%08x", carrier.sys ? "Sys" : "Ex",
+                 carrier.mode, kTargetHdmi, static_cast<unsigned>(config));
         if (config < 0)
         {
             if (codec_ == pt::Codec::pcm2 || codec_ == pt::Codec::pcm6)
                 sceAudioOutClose(handle);
+            else if (carrier.sys)
+                sceAudioOutSysClose(handle);
             else
                 api.close(handle);
             fail("sceAudioOutExConfigureOutput refused output mode");
@@ -233,7 +247,8 @@ void BitstreamPlayer::run()
     // grain, which paces the thread in real time.
     const std::size_t grain_bytes = (codec_ == pt::Codec::pcm6)
                                         ? static_cast<std::size_t>(carrier.grain_frames) * 16
-                                        : static_cast<std::size_t>(carrier.grain_frames) * 4;
+                                        : static_cast<std::size_t>(carrier.grain_frames) *
+                                              static_cast<std::size_t>(carrier.frame_bytes);
     // One grain of IEC 61937 null data: preamble, data type 0, nothing else.
     const auto send_null = [&](int ms)
     {
@@ -252,6 +267,7 @@ void BitstreamPlayer::run()
     if (!is_pcm)
         send_null(kLeadInMs);
 
+    int timed_grains = 0;
     pt::Packer packer(codec_);
     std::vector<std::uint8_t> pending;
     std::size_t cursor = 0;
@@ -272,8 +288,15 @@ void BitstreamPlayer::run()
         }
         if (pending.size() < grain_bytes)
             break; // end of the stream (or an error)
+        const std::int64_t t0 = now_ms();
         if (sceAudioOutOutput(handle, pending.data()) < 0)
             output_errors_.fetch_add(1, std::memory_order_relaxed);
+        if (timed_grains < 6) // how long one grain blocks tells the port's real rate
+        {
+            sys::log("[PT] grain %d: %zu bytes took %lld ms", timed_grains, grain_bytes,
+                     static_cast<long long>(now_ms() - t0));
+            ++timed_grains;
+        }
         port_frames_.fetch_add(static_cast<std::uint64_t>(carrier.grain_frames),
                                std::memory_order_relaxed);
         pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(grain_bytes));
@@ -283,7 +306,9 @@ void BitstreamPlayer::run()
     if (!is_pcm)
         send_null(kLeadOutMs);
     sceAudioOutOutput(handle, nullptr);
-    const int close_rc = is_pcm ? sceAudioOutClose(handle) : api.close(handle);
+    const int close_rc = is_pcm        ? sceAudioOutClose(handle)
+                         : carrier.sys ? sceAudioOutSysClose(handle)
+                                       : api.close(handle);
     sleep_ms(kAfterCloseMs);
     const int reset_rc = (api.configure != nullptr)
                              ? api.configure(0, 0, kModeDefault, kModeDefault, 0)

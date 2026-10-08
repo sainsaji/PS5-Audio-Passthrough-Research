@@ -5,3 +5,4 @@ dtshd-5.1.dtshd
 eac3-5.1-640k.eac3
 pcm-2.0.wav
 pcm-5.1.wav
+truehd-5.1.thd

@@ -24,6 +24,7 @@ ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a ac3  -b:a 448k "$out/ac3
 ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a eac3 -b:a 640k "$out/eac3-5.1-640k.eac3"
 ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a dca  -b:a 768k -strict -2 "$out/dts-5.1-768k.dts"
 ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a aac  -b:a 384k -f adts "$out/aac-5.1.aac"
+ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a truehd -strict -2 "$out/truehd-5.1.thd"
 ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a dca  -b:a 768k -strict -2 -f dts "$out/dtshd-5.1.dtshd"
 ffmpeg -hide_banner -loglevel error -y "${src2[@]}" -c:a pcm_s16le "$out/pcm-2.0.wav"
 ffmpeg -hide_banner -loglevel error -y "${src[@]}" -c:a pcm_s16le "$out/pcm-5.1.wav"
@@ -37,6 +38,6 @@ fi
 
 # /app0 cannot be listed on the console, so the app reads these indexes:
 # index.txt for the committed clips, index.local.txt for local-* ones.
-(cd "$out" && ls -1 *.ac3 *.eac3 *.dts *.dtshd *.aac *.wav 2>/dev/null | grep -v '^local-' | LC_ALL=C sort > index.txt)
+(cd "$out" && ls -1 *.ac3 *.eac3 *.dts *.dtshd *.aac *.thd *.wav 2>/dev/null | grep -v '^local-' | LC_ALL=C sort > index.txt)
 (cd "$out" && { ls -1 local-* 2>/dev/null || true; } | LC_ALL=C sort > index.local.txt)
 ls -la "$out"
