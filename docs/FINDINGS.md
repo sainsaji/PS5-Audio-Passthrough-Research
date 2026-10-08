@@ -113,6 +113,12 @@ Probe commands from `reference/evo_pt_probe.c`, sent through EVO's dev remote.
 10. **citroncore's sequence** (text `0x30eb2` onward): close any old port → `ExOpen(0xFF, TABLE[k].mode)` (call at va `0x31baa`) → `ExConfigureOutput(0, 0, TABLE[k].mode, TABLE[k].target, 0)` (call at va `0x30f3f`). TABLE at va `0x1458e0`, 8 bytes per row: `{0xFF,0xFF}`, `{1,1}`, `{0,1}`, `{3,1}`.
 11. **`sony`** (that exact sequence for AC-3): ExOpen gave handle `0x2006001f`, ExConfigureOutput(0,0,0,1,0) rc=0, 468 bursts (15 s), close rc=0, reset rc=0. **The soundbar showed "Dolby Digital" and played the test file's tones.** This was the only run where the soundbar decoded anything: the sweep was silent, and the control run only gave ticking.
 
+12. **Sample app, sandboxed** (Passthrough Lab, `PPSA99051`, no sandbox escape):
+    - The first build looked the functions up with `sceKernelLoadStartModule` + `sceKernelDlsym`. The module loaded (`module=0x69`), but every lookup failed, by name and by NID. A sandboxed process isn't allowed runtime symbol lookup.
+    - Declaring the four functions `extern "C"` and linking against the payload SDK's `libSceAudioOut.so` stub, which already exports them, fixed it.
+    - `sceAudioOutSysGetHdmiMonitorInfo` returned 0 and the same nine formats.
+    - The receiver decoded **AC-3** (mode 0), **DTS core 768 kbps** (mode 2, IEC type 0x0B), **E-AC-3 640 kbps** (mode 3, 192 kHz, type 0x15), **AAC 5.1 ADTS** (mode 1, type 0x07), and a 30-second **E-AC-3 Atmos (JOC)** track cut from a Dolby test file.
+
 ## 5. What changed between the silent runs and the working one
 
 Three things changed at once, so the single deciding factor isn't isolated:

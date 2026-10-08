@@ -1,0 +1,13 @@
+# LF everywhere: the sample app's build checks runtime/libc.prx.sha256 byte for
+# byte and runs its shell scripts in Linux, so CRLF checkouts break it.
+* text=auto eol=lf
+*.ac3 binary
+*.eac3 binary
+*.dts binary
+*.aac binary
+*.png binary
+*.dds binary
+*.at9 binary
+*.huifont binary
+*.ogg binary
+*.wav binary
