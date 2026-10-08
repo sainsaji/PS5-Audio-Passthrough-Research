@@ -20,7 +20,10 @@ This repo has the recipe, a working sample app, how it was found, what failed on
 | DTS 5.1 (core) | 2 | 256 @ 48 kHz | **works** |
 | Dolby Digital Plus (E-AC-3) 5.1 | 3 | 1024 @ 192 kHz | **works** |
 | Dolby Digital Plus with Atmos | 3 | 1024 @ 192 kHz | **plays** (the receiver's Atmos indicator not yet checked) |
-| Dolby TrueHD, DTS-HD | 4 / 10? | ? | not yet: they need the HDMI high-bitrate mode, still being worked out |
+| Dolby TrueHD 5.1 | none | - | **not possible**: no console mode carries TrueHD (see findings, item 14) |
+| DTS-HD 5.1 | 4 | 1024 @ 192 kHz | sent as DTS-HD (Type IV framing, 8192-byte bursts); the console labels mode 4 "DTS-HD HR" |
+| Linear PCM 2ch (stereo) | 5 | 256 @ 48 kHz | **works** (S16 stereo) |
+| Linear PCM 6ch (5.1 surround) | 6 | 256 @ 48 kHz | **works** (mapped to S16 8-channel port) |
 
 Test setup: PS5 Pro, firmware **12.70**, jailbroken (homebrew launched through ShadowMount+). Audio chain: PS5 → HDMI → LG UltraGear monitor → soundbar with Dolby/DTS decoding. The first test ran inside EVO Player after it had escaped its sandbox. Every later test ran in [the sample app](sample-app/), which is a normal sandboxed app.
 
@@ -56,6 +59,7 @@ Do these in this order. The order matters: Sony's own player opens the port **be
    | E-AC-3 | `0x0015` | **bytes** | 24576 bytes (6 audio blocks, at 192 kHz) |
    | DTS, 512 / 1024 / 2048 samples | `0x000B` / `0x000C` / `0x000D` | bits | samples × 4 bytes |
    | AAC (ADTS frame, header included) | `0x0007` | bits | 4096 bytes (1024 samples) |
+   | DTS-HD | `0x0211` | **bytes** | 8192 bytes (Type IV preamble, 192 kHz) |
 
    Pa = `0xF872`, Pb = `0x4E1F`. Each word is stored as one little-endian sample, so a burst starts `72 F8 1F 4E ...` in memory.
 
@@ -81,19 +85,21 @@ Working code: [sample-app/src/passthrough/iec61937.cpp](sample-app/src/passthrou
 
 ---
 
-## Modes not tested yet
+## Other Modes and Implementation Notes
 
 From the disassembly of `libSceAudioOut` (FW 12.70):
 
 | mode | what it sets on HDMI | port | notes |
 |---|---|---|---|
-| 4 | Sony code `0xF0`, 7.1 | 1024 @ 192 kHz | maybe Dolby TrueHD |
-| 9 | Sony code `0x16`, 5.1 | 256 @ 48 kHz | unknown |
-| 10 | Sony code `0xF3`, 7.1 | 1024 @ 192 kHz | maybe DTS-HD |
-| 5–8 | plain multichannel PCM | not accepted by `ExOpen` | |
+| 4 | Sony code `0xF0`, 7.1 | 1024 @ 192 kHz | DTS-HD (console log: `BITSTREAM DTS_HD_HR`; Type IV framing, 8192 bytes) |
+| 5 | LPCM, 2.0 | 256 @ 48 kHz | Linear PCM stereo (`sceAudioOutOpen` format 1) |
+| 6 | LPCM, 5.1 | 256 @ 48 kHz | Linear PCM surround (`sceAudioOutOpen` format 2, 8ch layout) |
+| 7–8 | LPCM, 7.1 | 256 @ 48 kHz | Linear PCM 8ch |
+| 9 | Sony code `0x16`, 5.1 | 256 @ 48 kHz | unverified |
+| 10 | Sony code `0xF3`, 7.1 | 1024 @ 192 kHz | Dolby Atmos (console log: `BITSTREAM DDPLUS_JOC`) |
 | 0xFF | reset to normal | | works |
 
-TrueHD and DTS-HD Master Audio normally need the HDMI "high bitrate" mode: 8 channels at 192 kHz. A stereo 192 kHz port carries only a quarter of that, so how modes 4 and 10 carry it is the next question.
+DTS-HD (mode 4) uses Type IV preambles (subtype 2, 2048 repetition period, 8192-byte bursts) over the 1024-grain @ 192 kHz carrier. No mode carries Dolby TrueHD: mode 9 logs `BITSTREAM LPCM`, and 4 and 10 are DTS-HD and Atmos. Linear PCM modes 5 and 6 are configured with `sceAudioOutExConfigureOutput` while streaming uncompressed audio via standard ports.
 
 ---
 
@@ -130,6 +136,6 @@ No Sony binaries or Dolby/DTS sample content are included, only notes, offsets, 
 
 ## Open questions
 
-- Dolby TrueHD and DTS-HD: which mode, and how the high-bitrate stream fits the port.
+- Dolby TrueHD: whether any route carries it (no `ExConfigureOutput` mode does; the Settings menu reaches it through console-side encoding).
 - Does the receiver light its Atmos indicator for the Dolby Digital Plus Atmos clip?
 - A/V sync: the receiver adds its own decode delay, which a video player has to account for.

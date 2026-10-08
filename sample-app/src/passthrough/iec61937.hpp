@@ -25,6 +25,10 @@ enum class Codec : std::uint8_t
     eac3,
     dts,
     aac, // ADTS (MPEG-2/4 AAC with a header on every frame)
+    truehd,
+    dtshd,
+    pcm2,
+    pcm6,
     unknown,
 };
 

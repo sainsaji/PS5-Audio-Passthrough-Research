@@ -5,16 +5,22 @@
 
 #include "platform/ps5/system.hpp"
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <memory>
 #include <span>
+#include <thread>
 
 // Not in the SDK headers, but the SDK's libSceAudioOut stub exports them, so
 // they link as ordinary imports. (A sandboxed app cannot look them up with
 // sceKernelDlsym: the lookup is refused, so link them instead.)
 extern "C"
 {
+    int sceAudioOutOpen(int user, int type, int index, unsigned int grain_frames,
+                        unsigned int frequency, unsigned int format);
+    int sceAudioOutClose(int handle);
     int sceAudioOutOutput(int handle, const void *samples);
     int sceAudioOutExOpen(int user, int mode);                                        // 6X6dp+07h4U
     int sceAudioOutExClose(int handle);                                               // 0TfjSulCV2A
@@ -33,6 +39,30 @@ constexpr int kSystemUser = 0xFF;
 constexpr int kTargetHdmi = 1;     // what citroncore passes
 constexpr int kModeDefault = 0xFF; // every field "don't care": normal PCM output
 constexpr unsigned kMonitorInfoSize = 0x180;
+
+// A receiver needs time to follow each HDMI format change. Switching formats
+// back to back left it stuck on the previous one (a PCM clip labelled "AAC",
+// and AAC silent until the receiver was restarted), so every bitstream is
+// bracketed by IEC 61937 null-data bursts, and a new switch waits out a
+// settle time after the last reset.
+constexpr int kLeadInMs = 400;      // null bursts after the switch, before the first frame
+constexpr int kLeadOutMs = 500;     // null bursts after the last frame, before the port closes
+constexpr int kAfterCloseMs = 250;  // between closing the port and resetting HDMI
+constexpr int kAfterResetMs = 400;  // after the reset, before the player reports done
+constexpr int kBeforeOpenMs = 1000; // minimum gap since the last reset before a new switch
+std::atomic<std::int64_t> g_last_reset_ms{-100000};
+
+std::int64_t now_ms()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void sleep_ms(int ms)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
 
 struct Api
 {
@@ -142,41 +172,86 @@ void BitstreamPlayer::run()
 {
     const Api &api = Api::get();
     const pt::Carrier carrier = pt::carrier_for(codec_);
-    if (api.open == nullptr || api.close == nullptr || api.configure == nullptr)
-    {
-        fail("libSceAudioOut does not export the Ex functions");
-        return;
-    }
     if (carrier.mode < 0)
     {
         fail("no carrier for this codec");
         return;
     }
 
-    // 1. The port first ...
-    const int handle = api.open(kSystemUser, carrier.mode);
+    const bool is_pcm = codec_ == pt::Codec::pcm2 || codec_ == pt::Codec::pcm6;
+    const std::int64_t since_reset = now_ms() - g_last_reset_ms.load();
+    if (since_reset < kBeforeOpenMs)
+        sleep_ms(static_cast<int>(kBeforeOpenMs - since_reset));
+
+    int handle = -1;
+    if (codec_ == pt::Codec::pcm2)
+    {
+        handle = sceAudioOutOpen(kSystemUser, 0, 0, carrier.grain_frames, carrier.sample_rate, 1 /* S16 stereo */);
+    }
+    else if (codec_ == pt::Codec::pcm6)
+    {
+        handle = sceAudioOutOpen(kSystemUser, 0, 0, carrier.grain_frames, carrier.sample_rate, 2 /* S16 8CH */);
+    }
+    else
+    {
+        if (api.open == nullptr || api.close == nullptr || api.configure == nullptr)
+        {
+            fail("libSceAudioOut does not export the Ex functions");
+            return;
+        }
+        handle = api.open(kSystemUser, carrier.mode);
+    }
+
     open_rc_.store(handle);
-    sys::log("[PT] ExOpen(0xFF, %d) = 0x%08x", carrier.mode, static_cast<unsigned>(handle));
+    sys::log("[PT] open(mode %d) = 0x%08x", carrier.mode, static_cast<unsigned>(handle));
     if (handle < 0)
     {
-        fail("sceAudioOutExOpen refused the port");
+        fail("could not open audio port");
         return;
     }
-    // 2. ... then HDMI goes to bitstream mode for this codec.
-    const int config = api.configure(0, 0, carrier.mode, kTargetHdmi, 0);
-    config_rc_.store(config);
-    sys::log("[PT] ExConfigureOutput(mode %d, target %d) = 0x%08x", carrier.mode, kTargetHdmi,
-             static_cast<unsigned>(config));
-    if (config < 0)
+
+    // 2. ... then HDMI goes to the configured mode.
+    int config = 0;
+    if (api.configure != nullptr)
     {
-        api.close(handle);
-        fail("sceAudioOutExConfigureOutput refused bitstream mode");
-        return;
+        config = api.configure(0, 0, carrier.mode, kTargetHdmi, 0);
+        config_rc_.store(config);
+        sys::log("[PT] ExConfigureOutput(mode %d, target %d) = 0x%08x", carrier.mode, kTargetHdmi,
+                 static_cast<unsigned>(config));
+        if (config < 0)
+        {
+            if (codec_ == pt::Codec::pcm2 || codec_ == pt::Codec::pcm6)
+                sceAudioOutClose(handle);
+            else
+                api.close(handle);
+            fail("sceAudioOutExConfigureOutput refused output mode");
+            return;
+        }
     }
 
     // 3. Bursts, one port grain at a time. sceAudioOutOutput blocks for each
     // grain, which paces the thread in real time.
-    const std::size_t grain_bytes = static_cast<std::size_t>(carrier.grain_frames) * 4;
+    const std::size_t grain_bytes = (codec_ == pt::Codec::pcm6)
+                                        ? static_cast<std::size_t>(carrier.grain_frames) * 16
+                                        : static_cast<std::size_t>(carrier.grain_frames) * 4;
+    // One grain of IEC 61937 null data: preamble, data type 0, nothing else.
+    const auto send_null = [&](int ms)
+    {
+        std::vector<std::uint8_t> grain(grain_bytes, 0);
+        if (!is_pcm)
+        {
+            grain[0] = 0x72; // Pa 0xF872, little-endian
+            grain[1] = 0xF8;
+            grain[2] = 0x1F; // Pb 0x4E1F
+            grain[3] = 0x4E;
+        }
+        const int grains = ms * carrier.sample_rate / 1000 / carrier.grain_frames;
+        for (int i = 0; i < grains; ++i)
+            sceAudioOutOutput(handle, grain.data());
+    };
+    if (!is_pcm)
+        send_null(kLeadInMs);
+
     pt::Packer packer(codec_);
     std::vector<std::uint8_t> pending;
     std::size_t cursor = 0;
@@ -205,9 +280,16 @@ void BitstreamPlayer::run()
     }
 
     // 4. Drain, close and give HDMI back to normal PCM.
+    if (!is_pcm)
+        send_null(kLeadOutMs);
     sceAudioOutOutput(handle, nullptr);
-    const int close_rc = api.close(handle);
-    const int reset_rc = api.configure(0, 0, kModeDefault, kModeDefault, 0);
+    const int close_rc = is_pcm ? sceAudioOutClose(handle) : api.close(handle);
+    sleep_ms(kAfterCloseMs);
+    const int reset_rc = (api.configure != nullptr)
+                             ? api.configure(0, 0, kModeDefault, kModeDefault, 0)
+                             : 0;
+    g_last_reset_ms.store(now_ms());
+    sleep_ms(kAfterResetMs);
     sys::log("[PT] done bursts=%llu errors=%llu close=0x%08x reset=0x%08x",
              static_cast<unsigned long long>(bursts_.load()),
              static_cast<unsigned long long>(output_errors_.load()),

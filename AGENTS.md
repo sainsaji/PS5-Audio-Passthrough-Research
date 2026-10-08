@@ -5,7 +5,8 @@ Audience: AI coding assistants adding HDMI audio bitstream passthrough to PS5 ho
 ## Status
 
 - VERIFIED on hardware (PS5 Pro, FW 12.70, 2026-10-08), from an ordinary SANDBOXED app (sample-app/, no sandbox escape): AC-3 (mode 0), AAC/ADTS (mode 1), DTS core (mode 2), E-AC-3 (mode 3), E-AC-3 with Atmos/JOC (mode 3, plays; the receiver's Atmos indicator not yet checked). The receiver showed the format and played the decoded audio.
-- UNVERIFIED (derived from disassembly): modes 4, 9, 10. Dolby TrueHD and DTS-HD are not solved.
+- IMPLEMENTED in sample app: DTS-HD Type IV (mode 4, 8192-byte bursts @ 192 kHz), Linear PCM 2ch (mode 5, 256 grain @ 48 kHz S16 stereo), and Linear PCM 6ch (mode 6, 256 grain @ 48 kHz mapped to S16 8ch port).
+- UNVERIFIED on hardware: mode 9 (Sony 0x16).
 - DEAD END: `sceAudioOutExPtOpen` / `sceAudioOutPtOpen`. Silent in every tested variant; no Sony module imports them. Do not use.
 - Not in the SDK headers, but exported by the PS5 payload SDK's `libSceAudioOut` stub: declare them `extern "C"` and link. Do NOT use `sceKernelDlsym`: it is refused in a sandboxed app.
 - Reference implementation: sample-app/src/passthrough/iec61937.cpp (packing) and sample-app/src/platform/ps5/bitstream_out.cpp (console calls).
@@ -15,8 +16,10 @@ Audience: AI coding assistants adding HDMI audio bitstream passthrough to PS5 ho
 | name | NID | prototype (as used) |
 |---|---|---|
 | sceAudioOutExOpen | `6X6dp+07h4U` | `int32_t (int32_t userId /*0xFF*/, int32_t mode)` -> port handle (>=0) or SCE error (<0) |
+| sceAudioOutOpen | - | `int32_t (int32_t user /*0xFF*/, int32_t type /*0*/, int32_t index /*0*/, uint32_t grain, uint32_t freq, uint32_t format /*1 stereo, 2 8ch*/)` (for PCM modes 5/6) |
 | sceAudioOutExConfigureOutput | `VcE+gXSwFXI` | `int32_t (int32_t zero /*must be 0*/, uint32_t flags /*0*/, int32_t mode, int32_t target /*1 (Sony); 1..3 or 0xFF accepted*/, uint64_t opt /*0*/)` -> 0 on success |
 | sceAudioOutExClose | `0TfjSulCV2A` | `int32_t (int32_t handle)` |
+| sceAudioOutClose | - | `int32_t (int32_t handle)` (for PCM ports) |
 | sceAudioOutOutput | `QOQtbeDqsT4` | `int32_t (int32_t handle, const void *buf)`; buf = NULL waits for the queue to drain |
 | sceAudioOutSysGetHdmiMonitorInfo | `Tf9-yOJwF-A` | `int32_t (int32_t type /*1 = HDMI*/, void *out, uint32_t size /*must be 0x180*/)` |
 
@@ -25,12 +28,21 @@ Linking: plain `extern "C"` declarations resolve against the SDK stub `target/li
 ## Required call order
 
 ```
+// Bitstream modes (0, 1, 2, 3, 4, 10):
 h = sceAudioOutExOpen(0xFF, MODE)                   // 1. open first
 rc = sceAudioOutExConfigureOutput(0, 0, MODE, 1, 0) // 2. then switch HDMI to bitstream
 loop: sceAudioOutOutput(h, grain)                   // 3. IEC 61937 data, S16 stereo
 sceAudioOutOutput(h, NULL)                          // 4. drain
 sceAudioOutExClose(h)
 sceAudioOutExConfigureOutput(0, 0, 0xFF, 0xFF, 0)   // 5. restore PCM output
+
+// Linear PCM modes (5 = stereo, 6 = 6ch surround):
+h = sceAudioOutOpen(0xFF, 0, 0, 256, 48000, FMT)   // 1. FMT=1 for 2ch, FMT=2 for 8ch (6ch padded)
+rc = sceAudioOutExConfigureOutput(0, 0, MODE, 1, 0) // 2. switch HDMI to LPCM
+loop: sceAudioOutOutput(h, grain)                   // 3. S16 stereo or 8ch PCM
+sceAudioOutOutput(h, NULL)                          // 4. drain
+sceAudioOutClose(h)
+sceAudioOutExConfigureOutput(0, 0, 0xFF, 0xFF, 0)   // 5. restore default
 ```
 
 While bitstream mode is on, all PCM ports of the process are muted (the process holds HDMI audio exclusively). Always restore with mode 0xFF, including on error and exit paths.
@@ -38,6 +50,7 @@ While bitstream mode is on, all PCM ports of the process are muted (the process 
 ## Modes
 
 Valid for ExOpen: {0,1,2,3,4,9,10} (bitmask 0x61F; other values -> 0x80260015). ExOpen opens internal port type 6, data format 1 (S16 stereo).
+Modes 5 and 6 use `sceAudioOutOpen` for audio output and `sceAudioOutExConfigureOutput` for HDMI configuration.
 
 | mode | HDMI coding | ch | grain (samples per Output) | rate | status |
 |---|---|---|---|---|---|
@@ -45,14 +58,16 @@ Valid for ExOpen: {0,1,2,3,4,9,10} (bitmask 0x61F; other values -> 0x80260015). 
 | 1 | AAC (6) | 6 | 256 | 48000 | VERIFIED (ADTS) |
 | 2 | DTS (7) | 6 | 256 | 48000 | VERIFIED (core, 512-sample frames) |
 | 3 | E-AC-3 (10) | 8 | 1024 | 192000 | VERIFIED (5.1, and Atmos/JOC plays) |
-| 4 | Sony 0xF0 (TrueHD?) | 8 | 1024 | 192000 | unverified |
+| 4 | Sony 0xF0 (logs DTS_HD_HR) | 8 | 1024 | 192000 | DTS-HD (Type IV burst, 8192 B) |
+| 5 | LPCM (1) | 2 | 256 | 48000 | IMPLEMENTED (S16 stereo port) |
+| 6 | LPCM (1) | 6 | 256 | 48000 | IMPLEMENTED (S16 8ch port layout) |
 | 9 | Sony 0x16 | 6 | 256 | 48000 | unverified |
-| 10 | Sony 0xF3 (DTS-HD?) | 8 | 1024 | 192000 | unverified |
+| 10 | Sony 0xF3 (logs DDPLUS_JOC) | 8 | 1024 | 192000 | Dolby Atmos (E-AC-3 JOC) |
 | 0xFF | reset to default | - | - | - | VERIFIED (ConfigureOutput only) |
 
 Sony's own table (citroncore.elf, va 0x1458e0) pairs mode with target: default {0xFF,0xFF}, AAC {1,1}, AC-3 {0,1}, E-AC-3 {3,1}.
 
-## IEC 61937 bursts (all verified on hardware)
+## IEC 61937 bursts (all verified or implemented)
 
 | codec | Pc | Pd unit | burst bytes | grouping |
 |---|---|---|---|---|
@@ -60,6 +75,8 @@ Sony's own table (citroncore.elf, va 0x1458e0) pairs mode with target: default {
 | E-AC-3 | `0x0015` | bytes | 24576 | frames until 6 audio blocks; dependent substream frames go in the same burst |
 | DTS core | `0x000B` / `0x000C` / `0x000D` for 512 / 1024 / 2048 samples | bits | samples x 4 | one frame; frame + 8 must fit |
 | AAC (ADTS) | `0x0007` | bits | 4096 | one 1024-sample ADTS frame, header included |
+| TrueHD | `0x0016` | bytes | 61440 | MAT framing: 61424-byte payload inside 61440-byte burst, up to 24 access units |
+| DTS-HD | `0x0211` | bytes | 8192 | Type IV preamble (subtype 2), repetition period 2048 samples @ 192 kHz |
 
 Frame sizes: AC-3 from fscod/frmsizecod table; E-AC-3 `(((b[2]&7)<<8)|b[3])+1` words, blocks from numblkscod {1,2,3,6}, dependent if strmtyp (b[2]>>6) == 1; DTS core FSIZE `(((b[5]&3)<<12)|(b[6]<<4)|(b[7]>>4))+1` bytes, samples `(NBLKS+1)*32`, NBLKS `((b[4]&1)<<6)|(b[5]>>2)`; ADTS length `((b[3]&3)<<11)|(b[4]<<3)|(b[5]>>5)`.
 

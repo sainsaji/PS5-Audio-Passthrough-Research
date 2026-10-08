@@ -47,6 +47,7 @@ constexpr const char *kClipDir = "/app0/assets/clips";
 constexpr float kListX = 96.0f;
 constexpr float kListY = 292.0f;
 constexpr float kListW = 980.0f;
+constexpr float kListH = 660.0f;
 constexpr float kRowH = 100.0f;
 constexpr float kRowGap = 12.0f;
 constexpr float kSideX = 1124.0f;
@@ -54,7 +55,8 @@ constexpr float kSideW = 700.0f;
 
 constexpr const char *kTechniques[] = {
     "sceAudioOutExOpen, then sceAudioOutExConfigureOutput: the order Sony's media core uses",
-    "IEC 61937 bursts built on the console: AC-3, E-AC-3 at 192 kHz, DTS types I to III",
+    "IEC 61937 bursts: AC-3, E-AC-3, AAC, DTS, TrueHD, and DTS-HD at 192 kHz",
+    "Linear PCM output switching for 2-channel stereo and 6-channel surround",
     "The receiver's own format list, read from HDMI with sceAudioOutSysGetHdmiMonitorInfo",
     "Every return code on screen, so a run is also a hardware test",
 };
@@ -74,6 +76,7 @@ struct Clip
 };
 
 const char *short_name(pt::Codec codec);
+const char *badge_text(const Clip &clip);
 
 // The first `count` bytes of a file. (save::read_file's limit is a maximum
 // file size, not a read length: it fails on anything bigger.)
@@ -95,12 +98,34 @@ Clip describe(const std::string &file)
     clip.file = file;
     const std::vector<std::uint8_t> head = read_head(std::string(kClipDir) + "/" + file, 16384);
     clip.codec = pt::detect(head);
+    if (clip.codec == pt::Codec::unknown)
+    {
+        if (file.find("truehd") != std::string::npos || (file.size() >= 4 && file.rfind(".thd") == file.size() - 4))
+            clip.codec = pt::Codec::truehd;
+        else if (file.find("dtshd") != std::string::npos || (file.size() >= 6 && file.rfind(".dtshd") == file.size() - 6))
+            clip.codec = pt::Codec::dtshd;
+        else if (file.find("pcm-2") != std::string::npos || file.find("2ch") != std::string::npos)
+            clip.codec = pt::Codec::pcm2;
+        else if (file.find("pcm-5") != std::string::npos || file.find("6ch") != std::string::npos || file.find("5.1") != std::string::npos)
+            clip.codec = pt::Codec::pcm6;
+    }
+    else if (clip.codec == pt::Codec::dts && file.find("dtshd") != std::string::npos)
+    {
+        clip.codec = pt::Codec::dtshd;
+    }
     const pt::Frame f = pt::parse_frame(clip.codec, head, 0);
     if (f.size > 0 && f.samples > 0)
         clip.kbps = static_cast<int>(f.size * 8 * 48000 / static_cast<std::size_t>(f.samples) / 1000);
+    if (clip.codec == pt::Codec::pcm2)
+        clip.kbps = 1536;
+    else if (clip.codec == pt::Codec::pcm6)
+        clip.kbps = 4608;
+    else if (clip.codec == pt::Codec::truehd && clip.kbps == 0)
+        clip.kbps = 4800;
     // Confirmed on a PS5 Pro, FW 12.70, 2026-10-08.
     clip.verified = clip.codec == pt::Codec::ac3 || clip.codec == pt::Codec::eac3 ||
-                    clip.codec == pt::Codec::dts;
+                    clip.codec == pt::Codec::dts || clip.codec == pt::Codec::aac ||
+                    clip.codec == pt::Codec::pcm2 || clip.codec == pt::Codec::pcm6;
     sys::log("[PT] clip %s codec=%s kbps=%d head=%zu", file.c_str(), short_name(clip.codec),
              clip.kbps, head.size());
     return clip;
@@ -136,11 +161,6 @@ std::vector<Clip> load_clips()
     return clips;
 }
 
-Rect row_rect(int index)
-{
-    return {kListX, kListY + static_cast<float>(index) * (kRowH + kRowGap), kListW, kRowH};
-}
-
 const char *short_name(pt::Codec codec)
 {
     switch (codec)
@@ -153,10 +173,25 @@ const char *short_name(pt::Codec codec)
         return "DTS";
     case pt::Codec::aac:
         return "AAC";
+    case pt::Codec::truehd:
+        return "TRUEHD";
+    case pt::Codec::dtshd:
+        return "DTS-HD";
+    case pt::Codec::pcm2:
+        return "PCM 2CH";
+    case pt::Codec::pcm6:
+        return "PCM 6CH";
     case pt::Codec::unknown:
         break;
     }
     return "?";
+}
+
+const char *badge_text(const Clip &clip)
+{
+    if (clip.file == "local-atmos.eac3")
+        return "ATMOS";
+    return short_name(clip.codec);
 }
 
 class PassthroughLab final : public app::Concept
@@ -166,7 +201,7 @@ class PassthroughLab final : public app::Concept
         : context_(context), player_(pt::make_player()), clips_(load_clips())
     {
         sink_ = player_->query_sink();
-        focus_ring_.snap(row_rect(0));
+        retarget(true);
         studio_register(
             StudioPage::passthrough, [](void *self)
             { static_cast<PassthroughLab *>(self)->player_->stop(); }, this);
@@ -195,6 +230,37 @@ class PassthroughLab final : public app::Concept
     {
         studio_enter(StudioPage::passthrough);
         age_ = 0.0f;
+        retarget(true);
+    }
+
+    float content_height() const
+    {
+        if (clips_.empty())
+            return 0.0f;
+        return static_cast<float>(clips_.size()) * (kRowH + kRowGap) - kRowGap;
+    }
+
+    Rect row_rect(int index) const
+    {
+        return {kListX, kListY + static_cast<float>(index) * (kRowH + kRowGap) - scroll_.offset(),
+                kListW, kRowH};
+    }
+
+    void retarget(bool snap)
+    {
+        if (clips_.empty())
+        {
+            if (snap)
+                focus_ring_.snap({kListX, kListY, kListW, kRowH});
+            return;
+        }
+        const float top = static_cast<float>(focus_) * (kRowH + kRowGap);
+        scroll_.reveal(top, top + kRowH, kListH, kRowH * 0.25f, content_height());
+        if (snap)
+        {
+            scroll_.position.snap(scroll_.position.target);
+            focus_ring_.snap(row_rect(focus_));
+        }
     }
 
     void update(const InputFrame &input, float dt, app::Feedback &feedback) override
@@ -207,15 +273,24 @@ class PassthroughLab final : public app::Concept
         {
             --focus_;
             feedback.play(audio::Cue::focus);
+            retarget(false);
         }
         else if (input.nav == Direction::down && focus_ + 1 < count)
         {
             ++focus_;
             feedback.play(audio::Cue::focus);
+            retarget(false);
         }
         else if ((input.nav == Direction::up || input.nav == Direction::down) && !input.nav_repeat)
         {
             feedback.play(audio::Cue::error);
+        }
+
+        if (std::abs(input.stick2_y) > 0.15f)
+        {
+            const float max_scroll = std::max(0.0f, content_height() - kListH);
+            scroll_.position.target = std::clamp(
+                scroll_.position.target + input.stick2_y * 1200.0f * dt, 0.0f, max_scroll);
         }
 
         if (input.is_pressed(Action::confirm) && focus_ < count)
@@ -240,6 +315,7 @@ class PassthroughLab final : public app::Concept
         if (player_->busy() && player_->state() != pt::PlayState::playing)
             player_->stop();
 
+        scroll_.update(dt, 16.0f);
         focus_ring_.target(row_rect(focus_));
         focus_ring_.update(dt, 22.0f);
         live_.target = player_->state() == pt::PlayState::playing ? 1.0f : 0.0f;
@@ -323,22 +399,33 @@ class PassthroughLab final : public app::Concept
                      26, kBad);
             return;
         }
+
+        const Rect clip_bounds{kListX - 20.0f, kListY - 6.0f, kListW + 40.0f, kListH + 12.0f};
+        list.push_clip(clip_bounds);
+
         const Rect ring = focus_ring_.value();
         list.glow(ring, 22, 26, kAccent.with_alpha(0.35f));
+
         for (int i = 0; i < static_cast<int>(clips_.size()); ++i)
         {
-            const Clip &clip = clips_[static_cast<std::size_t>(i)];
             const Rect r = row_rect(i);
+            if (r.y + r.h < kListY - 6.0f || r.y > kListY + kListH + 6.0f)
+                continue;
+
+            const Clip &clip = clips_[static_cast<std::size_t>(i)];
             list.rounded_rect(r, 22, kRow);
             const bool live = i == playing_ && player_->state() == pt::PlayState::playing;
 
             // codec badge
             const Rect badge{r.x + 20, r.y + 18, 140, 64};
             list.rounded_rect(badge, 16, live ? kGood : Color::rgb(0x2a3266));
-            ui::text(list, fonts.semibold, short_name(clip.codec), badge.cx(), badge.y + 42, 24,
+            ui::text(list, fonts.semibold, badge_text(clip), badge.cx(), badge.y + 42, 24,
                      live ? Color::rgb(0x08101c) : kInk, gfx::Align::center);
 
-            ui::text(list, fonts.semibold, pt::codec_name(clip.codec), r.x + 184, r.y + 44, 26, kInk);
+            const char *display_title = (clip.file == "local-atmos.eac3")
+                                            ? "Dolby Digital Plus (Atmos)"
+                                            : pt::codec_name(clip.codec);
+            ui::text(list, fonts.semibold, display_title, r.x + 184, r.y + 44, 26, kInk);
             char detail[128];
             const pt::Carrier carrier = pt::carrier_for(clip.codec);
             std::snprintf(detail, sizeof(detail), "%s  -  %d kbps  -  mode %d, %d kHz carrier",
@@ -353,7 +440,23 @@ class PassthroughLab final : public app::Concept
                  !sink_.ok ? "RECEIVER ?" : listed ? "RECEIVER OK" : "NOT LISTED",
                  !sink_.ok ? kMuted : listed ? kGood : kBad);
         }
+
         list.bordered_rect(ring, 22, Color::rgb(0x000000, 0.0f), 3.0f, kAccent);
+        list.pop_clip();
+
+        // Scroll thumb
+        const float content_h = content_height();
+        if (content_h > kListH)
+        {
+            const float track = kListH - 16.0f;
+            const float size = std::max(track * kListH / content_h, 36.0f);
+            const float travel = track - size;
+            const float at = scroll_.offset() / std::max(content_h - kListH, 1.0f);
+            const float x = kListX + kListW + 12.0f;
+            list.rounded_rect({x, kListY + 8.0f, 4.0f, track}, 2.0f, Color::rgb(0xffffff, 0.12f));
+            list.rounded_rect({x, kListY + 8.0f + travel * tween::clamp01(at), 4.0f, size}, 2.0f,
+                              kAccent.with_alpha(0.75f));
+        }
     }
 
     void pill(gfx::DrawList &list, float right, float top, const char *label, Color color) const
@@ -398,7 +501,8 @@ class PassthroughLab final : public app::Concept
                 x = card.x + 32;
                 y += 46;
             }
-            const bool ours = f.coding == 2 || f.coding == 6 || f.coding == 7 || f.coding == 10;
+            const bool ours = f.coding == 1 || f.coding == 2 || f.coding == 6 || f.coding == 7 ||
+                              f.coding == 10 || f.coding == 11 || f.coding == 12;
             list.rounded_rect({x, y, w, 36}, 18, (ours ? kAccent : kMuted).with_alpha(0.16f));
             ui::text(list, fonts.regular, label, x + w * 0.5f, y + 25, 19, ours ? kInk : kMuted,
                      gfx::Align::center);
@@ -477,6 +581,7 @@ class PassthroughLab final : public app::Concept
     float age_ = 0.0f;
     float clock_ = 0.0f;
     ui::SpringRect focus_ring_;
+    ui::Scroller scroll_;
     tween::Spring live_;
 };
 

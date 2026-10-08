@@ -18,14 +18,21 @@ int coding_for(Codec codec)
 {
     switch (codec)
     {
+    case Codec::pcm2:
+    case Codec::pcm6:
+        return 1;
     case Codec::ac3:
         return 2;
-    case Codec::dts:
-        return 7;
     case Codec::aac:
         return 6;
+    case Codec::dts:
+        return 7;
     case Codec::eac3:
         return 10;
+    case Codec::dtshd:
+        return 11;
+    case Codec::truehd:
+        return 12;
     case Codec::unknown:
         break;
     }

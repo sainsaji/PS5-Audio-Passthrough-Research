@@ -11,3 +11,5 @@
 *.huifont binary
 *.ogg binary
 *.wav binary
+*.thd binary
+*.dtshd binary

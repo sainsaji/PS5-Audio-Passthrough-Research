@@ -119,6 +119,9 @@ Probe commands from `reference/evo_pt_probe.c`, sent through EVO's dev remote.
     - Declaring the four functions `extern "C"` and linking against the payload SDK's `libSceAudioOut.so` stub, which already exports them, fixed it.
     - `sceAudioOutSysGetHdmiMonitorInfo` returned 0 and the same nine formats.
     - The receiver decoded **AC-3** (mode 0), **DTS core 768 kbps** (mode 2, IEC type 0x0B), **E-AC-3 640 kbps** (mode 3, 192 kHz, type 0x15), **AAC 5.1 ADTS** (mode 1, type 0x07), and a 30-second **E-AC-3 Atmos (JOC)** track cut from a Dolby test file.
+13. **High-bitrate and Linear PCM formats (TrueHD, DTS-HD, PCM 2ch, PCM 6ch)**:
+    - **DTS-HD**: Type IV preambles (`0x0211`, 2048 repetition period, 8192-byte bursts) over S16 stereo at 192 kHz. See item 14 for the mode.
+    - **Modes 5 & 6 (Linear PCM)**: `sceAudioOutExOpen` returns `0x80260015` because it restricts to bitmask `0x61F`. However, `sceAudioOutExConfigureOutput(0, 0, mode, 1, 0)` switches HDMI to LPCM, while standard ports (`sceAudioOutOpen`) stream raw PCM (format 1 for stereo, format 2 for 8-channel with 6ch surround mapped).
 
 ## 5. What changed between the silent runs and the working one
 
@@ -129,3 +132,10 @@ Three things changed at once, so the single deciding factor isn't isolated:
 - the target: 1 instead of 0xFF.
 
 The format code is the most likely cause, since 14 and 12 aren't PCM formats in the internal open. Copying Sony's sequence exactly is the safe choice.
+
+14. **What each mode really is (kernel log, 2026-10-09).** `[AvControl] audio:` names the format the console set up:
+    - mode 0 `BITSTREAM AC3`, 1 `BITSTREAM AAC`, 2 `BITSTREAM DTS`, 3 `BITSTREAM DDPLUS` (192 kHz), 4 `BITSTREAM DTS_HD_HR` (192 kHz), 9 `BITSTREAM LPCM` (48 kHz 5.1), 10 `BITSTREAM DDPLUS_JOC` (192 kHz), 5 and 6 `LPCM`.
+    - An earlier version sent TrueHD MAT through mode 4 and DTS-HD through mode 10. The receiver showed nothing and the soundbar made clapping noises; the log explained it, since mode 4 is DTS-HD and mode 10 is Atmos. DTS-HD now uses mode 4.
+    - No `ExOpen` mode is TrueHD, so the app does not play it. The Settings menu reaches Atmos through console-side encoding (`ENCODE_DOLBY_ATMOS`, 768 kHz 7.1), which an app cannot feed.
+15. **The receiver follows format changes slowly.** Switching formats back to back left the receiver stuck on the previous one: a PCM clip labelled "AAC", and AAC silent until the receiver was restarted. The console log was correct each time (`LPCM` after the reset), so the receiver was the one lagging. The player now sends 400 ms of IEC 61937 null bursts after each switch and 500 ms before closing, waits 250 ms before the reset and 400 ms after it, and holds a new switch for 1 s after the last reset.
+16. **AAC burst length.** Pd is in bits and must cover a whole 16-bit word, so an odd-length ADTS frame needs its length rounded up first. ffmpeg's spdif reader rejects the odd value ("Packet not ending at a 16-bit boundary").

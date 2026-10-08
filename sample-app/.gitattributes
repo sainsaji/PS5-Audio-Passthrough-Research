@@ -20,3 +20,10 @@ tooling/prospero-clang18 text eol=lf
 *.at9 binary
 *.prx binary
 *.bin binary
+*.ac3 binary
+*.eac3 binary
+*.dts binary
+*.dtshd binary
+*.aac binary
+*.thd binary
+*.wav binary
