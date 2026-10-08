@@ -116,6 +116,7 @@ An earlier write-up in the EVO Player project concluded passthrough was impossib
 1. AnyPS5's NID tool pointed to a public PS5 symbol list. That showed `libSceAudioOut` has more output-mode functions than had been tried.
 2. Reading the decrypted 12.70 `libSceAudioOut` showed the "Ex" and "Sys" configure calls end in the same place: `sceAvControlChangeOutputMode` in `libSceAvSetting`.
 3. A probe in EVO Player called the switch and logged `rc=0`. The kernel log (`[AvControl]`) confirmed `fmt:BITSTREAM AC3`, but every port tried stayed silent.
+4. Scanning all 552 system modules for the output-mode function found **`citroncore.elf`** (Sony's streaming media core) using it.
 5. `citroncore` uses `sceAudioOutExOpen`, opens it before switching, and uses target 1. Copying that exactly gave Dolby Digital on the soundbar, and the sample app then confirmed the other formats from a sandboxed app.
 
 The details, offsets and log lines are in [docs/FINDINGS.md](docs/FINDINGS.md).

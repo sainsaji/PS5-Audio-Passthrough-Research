@@ -104,6 +104,7 @@ Probe commands from `reference/evo_pt_probe.c`, sent through EVO's dev remote.
    ```
    The Settings menu only uses ENCODE modes. Our call got BITSTREAM.
 8. **Sweep**, all under mode 0: ExPtOpen type 0/1 × format 14/12 × byte order, 6 variants, 8 s each. All silent; HDMI stayed in `BITSTREAM AC3` throughout.
+9. **System module scan.** All 552 modules under `/system/common/lib`, `/system/priv/lib`, `/system_ex/common_ex/lib`, `/system_ex/priv_ex/lib` and `/system/vsh` were searched for imports of the output-mode functions:
    - `citroncore.elf`: ExConfigureOutput, ExOpen, ExClose, ExGetMonitorInfo, ExGetOutputInfo, Open, Output, Close, SetVolume
    - `becore_ext.elf`, `becore_ext_esvm.elf`: ExConfigureOutput
    - `libSceSysBridge.sprx`: sceAvControlChangeOutputMode, sceAudioOutSysConfigureOutput
