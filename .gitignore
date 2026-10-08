@@ -1,0 +1,5 @@
+tools/sys/
+sys/
+*.sprx
+*.elf
+*.dec
