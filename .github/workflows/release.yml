@@ -165,7 +165,7 @@ jobs:
             gh release create "$VERSION" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "Surround Sound Studio $VERSION" \
+              --title "Surround Sound Studio v$VERSION" \
               --notes-file sample-app/RELEASE_NOTES.md \
-              --prerelease
+              --latest
           fi

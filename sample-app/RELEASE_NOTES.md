@@ -1,6 +1,8 @@
+![](https://img.shields.io/badge/Release-v01.000.001-blueviolet?style=flat-square) ![](https://img.shields.io/badge/PS5%20Hardware-Verified-0070d1?style=flat-square&logo=playstation&logoColor=white) ![](https://img.shields.io/badge/Firmware-12.70-blue?style=flat-square)
+
 **01.000.001:** a new icon, DTS-HD sent in the right console mode (it was going out as Atmos), AAC bursts that are valid for every frame length, and a settle time between format changes. TrueHD is removed.
 
-First release of **Surround Sound Studio**, a PS5 homebrew app for home-theatre sound. Pre-release: please report problems.
+First release of **Surround Sound Studio**, a PS5 homebrew app for home-theatre sound. Please report problems.
 
 **Passthrough page.** Plays test clips untouched over HDMI, so your soundbar or receiver decodes them:
 
