@@ -77,7 +77,7 @@ Working code: [sample-app/src/passthrough/iec61937.cpp](sample-app/src/passthrou
 
 ## The sample app
 
-[sample-app/](sample-app/) is **Passthrough Lab**, a one-screen app on the ps5-homebrew-ui kit. It bundles royalty-free 5.1 channel-ID clips (Dolby Digital, Dolby Digital Plus, DTS, AAC), shows your receiver's supported formats, and plays any clip as a bitstream, with every return code on screen. Build and install steps are in its README.
+[sample-app/](sample-app/) is **Surround Sound Studio**, an app on the ps5-homebrew-ui kit with two pages. **Passthrough** bundles royalty-free 5.1 channel-ID clips (Dolby Digital, Dolby Digital Plus, DTS, AAC), shows your receiver's supported formats, and plays any clip as a bitstream, with every return code on screen. **Speaker Lab** is EVO Player's speaker test suite: tones per speaker, 5.1 / 7.1 walks, a 3D sound field and DualSense microphone calibration. Build and install steps are in its README.
 
 ---
 

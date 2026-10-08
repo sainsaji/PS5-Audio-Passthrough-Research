@@ -20,8 +20,11 @@ OPENGL_SDK := .deps/ps5-opengl/current
 override APP_DEFINITIONS := $(strip GL_GLEXT_PROTOTYPES=1 $(APP_DEFINITIONS))
 override APP_INCLUDE_PATHS := $(strip src $(OPENGL_SDK)/include $(APP_INCLUDE_PATHS))
 override APP_STATIC_ARCHIVES := $(strip .deps/ps5-opengl/libps5opengl-group.a $(APP_STATIC_ARCHIVES))
+# libSceAudioIn (the DualSense microphone, for speaker calibration) has no
+# stub in the payload SDK; build one from stubs/libSceAudioIn.c.
+AUDIO_IN_STUB := build/stubs/libSceAudioIn.so
 override APP_IMPORT_STUBS := $(strip $(OPENGL_SDK)/lib/libSceAgc.so \
-	$(OPENGL_SDK)/lib/libSceAgcDriver.so $(APP_IMPORT_STUBS))
+	$(OPENGL_SDK)/lib/libSceAgcDriver.so $(AUDIO_IN_STUB) $(APP_IMPORT_STUBS))
 PACBREW_PACKAGES ?=
 PACBREW_INCLUDE_PATHS ?=
 PACBREW_STATIC_ARCHIVES ?=
@@ -119,6 +122,13 @@ libc:
 $(RUNTIME): $(RUNTIME_INPUTS)
 	@printf '%s\n' '==> [libc] Generating the missing or outdated runtime'
 	@bash tools/rebuild-libc.sh
+
+$(AUDIO_IN_STUB): stubs/libSceAudioIn.c
+	@mkdir -p $(dir $@)
+	@clang-18 --target=x86_64-unknown-freebsd -fPIC -shared -nostdlib -fuse-ld=lld \
+		-Wl,-soname,libSceAudioIn.sprx -o $@ $<
+
+app ffpkg ffpfsc packages: $(AUDIO_IN_STUB)
 
 app: $(RUNTIME) opengl
 	@printf '%s\n' '==> [app] Compiling, linking, signing, and assembling the app folder'

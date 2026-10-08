@@ -7,6 +7,7 @@
 // so a run doubles as a hardware test.
 
 #include "concepts/concepts.hpp"
+#include "concepts/studio_audio.hpp"
 
 #include "core/save_file.hpp"
 #include "core/tween.hpp"
@@ -166,13 +167,21 @@ class PassthroughLab final : public app::Concept
     {
         sink_ = player_->query_sink();
         focus_ring_.snap(row_rect(0));
+        studio_register(
+            StudioPage::passthrough, [](void *self)
+            { static_cast<PassthroughLab *>(self)->player_->stop(); }, this);
+    }
+    ~PassthroughLab() override
+    {
+        studio_unregister(StudioPage::passthrough);
+        player_->stop();
     }
 
     const app::ConceptInfo &info() const override
     {
         static const app::ConceptInfo kInfo{
             "passthrough",
-            "Passthrough Lab",
+            "Passthrough",
             "Dolby and DTS bitstream over HDMI, decoded by your receiver",
             "src/concepts/passthrough.cpp",
             audio::SoundSet::glass,
@@ -184,6 +193,7 @@ class PassthroughLab final : public app::Concept
 
     void enter() override
     {
+        studio_enter(StudioPage::passthrough);
         age_ = 0.0f;
     }
 
@@ -250,7 +260,7 @@ class PassthroughLab final : public app::Concept
         const float intro = tween::cubic_out(std::min(1.0f, age_ / 0.6f));
         list.push_opacity(intro);
 
-        ui::text(list, fonts.display, "Passthrough Lab", 96, 150, 64, kInk);
+        ui::text(list, fonts.display, "Passthrough", 96, 150, 64, kInk);
         ui::text(list, fonts.regular,
                  "Dolby and DTS sent over HDMI untouched. Your receiver does the decoding.", 98,
                  198, 26, kMuted);
@@ -300,6 +310,7 @@ class PassthroughLab final : public app::Concept
         // The cue plays before the console mutes PCM for the bitstream.
         feedback.play(audio::Cue::launch);
         playing_ = focus_;
+        studio_enter(StudioPage::passthrough); // the speaker tests must not hold a port
         player_->start(std::move(stream), clip.codec, loop_);
     }
 

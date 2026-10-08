@@ -205,35 +205,52 @@ void Shell::draw_chrome()
     const Color white = Color::rgb(0xffffff);
     char text[96];
 
-    // ---- switcher banner: "L1  03 / 12  Name  R1", then the tagline ----
-    const float banner = banner_show_.value;
-    if (banner > 0.01f)
+    // ---- page tabs: "L1  [Passthrough] [Speaker Lab]  R1", always on screen so
+    // nobody misses a page; the tagline shows under them after a switch ----
+    if (concepts_.size() > 1)
     {
-        std::snprintf(text, sizeof(text), "%02zu / %02zu", current_ + 1, concepts_.size());
-        const float count_w = fonts_.mono.measure(text, 22);
-        const float name_w = fonts_.semibold.measure(info.name, 28);
-        const float l1 = ui::button_width(ui::Button::l1, 36);
-        const float width = 28 + l1 + 22 + count_w + 20 + name_w + 22 + l1 + 28;
+        constexpr float kTabText = 22.0f;
+        constexpr float kTabPad = 22.0f;
+        constexpr float kTabGap = 8.0f;
+        const float l1 = ui::button_width(ui::Button::l1, 32);
+        float tabs_w = 0.0f;
+        for (const auto &page : concepts_)
+            tabs_w += fonts_.semibold.measure(page->info().name, kTabText) + 2 * kTabPad + kTabGap;
+        tabs_w -= kTabGap;
+        const float width = 18 + l1 + 14 + tabs_w + 14 + l1 + 18;
         const float x = 960 - width * 0.5f;
-        const float y = 34 - 30 * (1.0f - banner);
-        chrome_.push_opacity(banner);
-        chrome_.shadow({x, y + 10, width, 64}, 32, 30, Color::rgb(0x000000, 0.45f));
-        chrome_.bordered_rect({x, y, width, 64}, 32, Color::rgb(0x0b0d16, 0.88f), 1.5f,
-                              info.accent.with_alpha(0.55f));
-        float cursor = x + 28;
-        ui::draw_button(chrome_, fonts_, glyphs, ui::Button::l1, cursor, y + 32, 36);
-        cursor += l1 + 22;
-        ui::text(chrome_, fonts_.mono, text, cursor, y + 40, 22, white.with_alpha(0.6f));
-        cursor += count_w + 20;
-        ui::text(chrome_, fonts_.semibold, info.name, cursor, y + 42, 28, white);
-        cursor += name_w + 22;
-        ui::draw_button(chrome_, fonts_, glyphs, ui::Button::r1, cursor, y + 32, 36);
-        const float tag_w = fonts_.regular.measure(info.tagline, 20) + 40;
-        chrome_.rounded_rect({960 - tag_w * 0.5f, y + 74, tag_w, 36}, 18,
-                             Color::rgb(0x0b0d16, 0.7f));
-        ui::text(chrome_, fonts_.regular, info.tagline, 960, y + 99, 20, white.with_alpha(0.82f),
-                 gfx::Align::center);
-        chrome_.pop_opacity();
+        constexpr float y = 20.0f;
+        chrome_.shadow({x, y + 8, width, 58}, 29, 26, Color::rgb(0x000000, 0.4f));
+        chrome_.bordered_rect({x, y, width, 58}, 29, Color::rgb(0x0b0d16, 0.86f), 1.5f,
+                              info.accent.with_alpha(0.45f));
+        float cursor = x + 18;
+        ui::draw_button(chrome_, fonts_, glyphs, ui::Button::l1, cursor, y + 29, 32);
+        cursor += l1 + 14;
+        for (std::size_t i = 0; i < concepts_.size(); ++i)
+        {
+            const ConceptInfo &page = concepts_[i]->info();
+            const float w = fonts_.semibold.measure(page.name, kTabText) + 2 * kTabPad;
+            const bool active = i == current_;
+            if (active)
+                chrome_.rounded_rect({cursor, y + 8, w, 42}, 21, page.accent.with_alpha(0.92f));
+            ui::text(chrome_, fonts_.semibold, page.name, cursor + w * 0.5f, y + 37, kTabText,
+                     active ? Color::rgb(0x07101c) : white.with_alpha(0.72f), gfx::Align::center);
+            cursor += w + kTabGap;
+        }
+        cursor += 14 - kTabGap;
+        ui::draw_button(chrome_, fonts_, glyphs, ui::Button::r1, cursor, y + 29, 32);
+
+        const float banner = banner_show_.value;
+        if (banner > 0.01f)
+        {
+            chrome_.push_opacity(banner);
+            const float tag_w = fonts_.regular.measure(info.tagline, 19) + 40;
+            const float ty = y + 66 - 8 * (1.0f - banner);
+            chrome_.rounded_rect({960 - tag_w * 0.5f, ty, tag_w, 34}, 17, Color::rgb(0x0b0d16, 0.75f));
+            ui::text(chrome_, fonts_.regular, info.tagline, 960, ty + 23, 19, white.with_alpha(0.85f),
+                     gfx::Align::center);
+            chrome_.pop_opacity();
+        }
     }
 
     // ---- info panel: a frosted drawer on the right ----

@@ -14,7 +14,7 @@
   "attribute3": 0,
   "conceptId": "99051",
   "contentBadgeType": 1,
-  "contentId": "UP9000-PPSA99051_00-PASSTHROUGHLAB00",
+  "contentId": "UP9000-PPSA99051_00-SURROUNDSOUNDSTU",
   "contentVersion": "01.000.010",
   "downloadDataSize": 256,
   "gameIntent": {
@@ -31,7 +31,7 @@
   "localizedParameters": {
     "defaultLanguage": "en-US",
     "en-US": {
-      "titleName": "Passthrough Lab"
+      "titleName": "Surround Sound Studio"
     }
   },
   "masterVersion": "01.00",

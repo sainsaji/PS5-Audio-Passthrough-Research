@@ -1,8 +1,20 @@
-# AGENTS.md: Passthrough Lab (sample app)
+# AGENTS.md: Surround Sound Studio (sample app)
 
-Audience: AI coding assistants. The app is a single-screen ps5-homebrew-ui app (title PPSA99051) that plays elementary audio streams as HDMI bitstream. The facts it relies on are in ../AGENTS.md.
+Audience: AI coding assistants. The app is a ps5-homebrew-ui app (title PPSA99051) with two pages switched by L1 / R1: **Passthrough** (elementary audio streams as HDMI bitstream; facts in ../AGENTS.md) and **Speaker Lab** (EVO Player's surround test suite on an 8-channel PCM port). The shell's always-on page tabs are in `src/app/shell.cpp` (`draw_chrome`).
 
 ## Map
+
+Speaker Lab (ported from EVO Player, namespaces `evo` / `evo::spatial` / `evo::kit` kept):
+
+- `src/concepts/speaker_lab.cpp`: the page (input, sweeps, orb motion, calibration flow).
+- `src/surround/`: room model and DBAP panning (`spatial_field.hpp`), the field music, the view (`surround_view.cpp`, kit draw lists) and its parameter block, the service headers.
+- `src/platform/ps5/surround_test_service.cpp`: tones / field / one-shot PCM on `sceAudioOutOpen(0xFF, 0, 0, 512, 48000, 2 /*S16_8CH*/)`.
+- `src/platform/ps5/speaker_calibration.cpp`: DualSense mic capture (`sceAudioIn*`, 16 kHz S16 mono), log sweeps, matched filter.
+- `stubs/libSceAudioIn.c`: import stub the Makefile builds (`build/stubs/libSceAudioIn.so`); the payload SDK has none.
+- `src/concepts/studio_audio.{hpp,cpp}`: entering a page stops the other page's audio (bitstream mode mutes all PCM ports).
+- `host/surround_host.cpp`: silent stand-ins for the PC preview.
+
+Passthrough:
 
 - `src/passthrough/iec61937.{hpp,cpp}`: codec detection, frame parsing, IEC 61937 burst packing (AC-3 type 0x01, E-AC-3 0x15, DTS 0x0B/0x0C/0x0D, AAC 0x07). Portable; no PS5 calls.
 - `src/passthrough/bitstream.{hpp,cpp}`: `pt::Player` interface, `pt::Sink`, CEA coding-type helpers.

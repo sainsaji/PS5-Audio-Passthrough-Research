@@ -19,7 +19,7 @@ ninja_begin "$build/build.ninja"
 
 # Everything under src/ except the console platform layer and entry point.
 sources=("$root/host/snapshot_main.cpp" "$root/host/manifest.cpp" "$root/host/platform_host.cpp"
-         "$root/host/bitstream_host.cpp")
+         "$root/host/bitstream_host.cpp" "$root/host/surround_host.cpp")
 while IFS= read -r -d '' source; do
     sources+=("$source")
 done < <(find "$root/src" -type f \( -name '*.cpp' -o -name '*.c' \) \
