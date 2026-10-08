@@ -111,7 +111,7 @@ Probe commands from `reference/evo_pt_probe.c`, sent through EVO's dev remote.
 
    Nothing imports ExPtOpen or PtOpen.
 10. **citroncore's sequence** (text `0x30eb2` onward): close any old port → `ExOpen(0xFF, TABLE[k].mode)` (call at va `0x31baa`) → `ExConfigureOutput(0, 0, TABLE[k].mode, TABLE[k].target, 0)` (call at va `0x30f3f`). TABLE at va `0x1458e0`, 8 bytes per row: `{0xFF,0xFF}`, `{1,1}`, `{0,1}`, `{3,1}`.
-11. **`sony`** (that exact sequence for AC-3): ExOpen gave handle `0x2006001f`, ExConfigureOutput(0,0,0,1,0) rc=0, 468 bursts (15 s), close rc=0, reset rc=0. **The soundbar showed "Dolby Digital".**
+11. **`sony`** (that exact sequence for AC-3): ExOpen gave handle `0x2006001f`, ExConfigureOutput(0,0,0,1,0) rc=0, 468 bursts (15 s), close rc=0, reset rc=0. **The soundbar showed "Dolby Digital" and played the test file's tones.** This was the only run where the soundbar decoded anything: the sweep was silent, and the control run only gave ticking.
 
 ## 5. What changed between the silent runs and the working one
 

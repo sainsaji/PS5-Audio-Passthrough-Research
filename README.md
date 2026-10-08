@@ -2,7 +2,7 @@
 
 A homebrew app on a jailbroken PS5 can send a **Dolby Digital (AC-3) bitstream** over HDMI to a soundbar or AV receiver. The receiver decodes it, not the console. This is the same mode the PS5's own media apps use, and different from the *Settings → Audio Format → Dolby* option, which only re-encodes the console's mixed sound.
 
-It was confirmed on real hardware on **2026-10-08**: the soundbar's display switched to **"Dolby Digital"** while the test ran.
+It was confirmed on real hardware on **2026-10-08**: the soundbar's display switched to **"Dolby Digital"** and the test file's tones played through the speakers, decoded by the soundbar.
 
 This repo has the recipe, how it was found, what failed on the way, and the tools used, so other homebrew projects can add passthrough.
 
@@ -124,5 +124,4 @@ No Sony binaries are included in this repo, only notes, offsets and our own code
 
 - Does it work without escaping the sandbox (a normal, unjailbroken-process homebrew)?
 - E-AC-3, DTS, and modes 4/9/10: real names and whether they work.
-- Did the receiver decode actual sound in the AC-3 test, or only lock onto the format? The display showed "Dolby Digital"; listening for the test tones is the next check.
 - A/V sync: the receiver adds its own decode delay.

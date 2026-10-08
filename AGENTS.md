@@ -4,7 +4,7 @@ Audience: AI coding assistants adding HDMI audio bitstream passthrough to PS5 ho
 
 ## Status
 
-- VERIFIED on hardware (PS5 Pro, FW 12.70, app module with sandbox escaped, 2026-10-08): AC-3 (mode 0). The receiver displayed "Dolby Digital".
+- VERIFIED on hardware (PS5 Pro, FW 12.70, app module with sandbox escaped, 2026-10-08): AC-3 (mode 0). The receiver displayed "Dolby Digital" and played the decoded audio.
 - UNVERIFIED (derived from disassembly): modes 1, 2, 3, 4, 9, 10.
 - DEAD END: `sceAudioOutExPtOpen` / `sceAudioOutPtOpen`. Silent in every tested variant; no Sony module imports them. Do not use.
 - Not part of the public SDK. Resolve at runtime from `libSceAudioOut.sprx`.
