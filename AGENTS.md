@@ -5,6 +5,7 @@ Audience: AI coding assistants adding HDMI audio bitstream passthrough to PS5 ho
 ## Status
 
 - VERIFIED on hardware (PS5 Pro, FW 12.70, 2026-10-08), from an ordinary SANDBOXED app (sample-app/, no sandbox escape): AC-3 (mode 0), AAC/ADTS (mode 1), DTS core (mode 2), E-AC-3 (mode 3), E-AC-3 with Atmos/JOC (mode 3, plays; the receiver's Atmos indicator not yet checked). The receiver showed the format and played the decoded audio.
+- VERIFIED on hardware (2026-10-09): Dolby TrueHD plays as MAT on the 768 kHz Sys port (`sceAudioOutSysOpen(0xFF, 5)`, then `sceAudioOutSysConfigureOutput(1, 0, 5, 1, 0)`); the receiver shows "Dolby Audio" (our MAT framing is a simplified one). That port's frames are consumed at 192 kHz, not 768 kHz (`Carrier::frame_rate()`), so count null bursts at 192 kHz.
 - IMPLEMENTED in sample app: DTS-HD Type IV (mode 4, 8192-byte bursts @ 192 kHz), Linear PCM 2ch (mode 5, 256 grain @ 48 kHz S16 stereo), and Linear PCM 6ch (mode 6, 256 grain @ 48 kHz mapped to S16 8ch port).
 - UNVERIFIED on hardware: mode 9 (Sony 0x16).
 - DEAD END: `sceAudioOutExPtOpen` / `sceAudioOutPtOpen`. Silent in every tested variant; no Sony module imports them. Do not use.

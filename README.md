@@ -1,8 +1,8 @@
 # PS5 audio passthrough (bitstream over HDMI) from homebrew
 
-PS5 homebrew can send **Dolby Digital, Dolby Digital Plus (including Atmos), DTS and AAC** over HDMI untouched, so a soundbar or AV receiver does the decoding instead of the console. This is the same mode the PS5's own media apps use. It's different from *Settings → Sound → Audio Format → Dolby*, which only re-encodes the console's mixed sound.
+PS5 homebrew can send **Dolby Digital, Dolby Digital Plus (including Atmos), DTS, AAC and Dolby TrueHD** over HDMI untouched, so a soundbar or AV receiver does the decoding instead of the console. This is the same mode the PS5's own media apps use. It's different from *Settings → Sound → Audio Format → Dolby*, which only re-encodes the console's mixed sound.
 
-It works from an **ordinary sandboxed homebrew app**: no sandbox escape and no kernel access. Confirmed on real hardware on **2026-10-08**: the receiver showed the format and played the decoded audio.
+It works from an **ordinary sandboxed homebrew app**: no sandbox escape and no kernel access. Confirmed on real hardware on **2026-10-08** (TrueHD on **2026-10-09**): the receiver showed the format and played the decoded audio.
 
 This repo has the recipe, a working sample app, how it was found, what failed on the way, and the tools used.
 
