@@ -7,7 +7,7 @@ A PS5 homebrew app for home-theatre sound, with two pages (switch with **L1 / R1
 
 ## Passthrough
 
-The Passthrough page sends **Dolby Digital, Dolby Digital Plus (including Atmos), DTS, AAC, DTS-HD, and Linear PCM** over HDMI untouched, so your soundbar or AV receiver does the decoding. It's built on [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui) and doubles as a hardware test: every number the console returns is on screen.
+The Passthrough page sends **Dolby Digital, Dolby Digital Plus (including Atmos), DTS, AAC, Dolby TrueHD, DTS-HD, and Linear PCM** over HDMI untouched, so your soundbar or AV receiver does the decoding. It's built on [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui) and doubles as a hardware test: every number the console returns is on screen.
 
 It runs as an ordinary sandboxed app. It doesn't need a sandbox escape or any kernel access.
 

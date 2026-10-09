@@ -1,4 +1,6 @@
-![](https://img.shields.io/badge/Release-v01.000.002-blueviolet?style=flat-square) ![](https://img.shields.io/badge/PS5%20Hardware-Verified-0070d1?style=flat-square&logo=playstation&logoColor=white) ![](https://img.shields.io/badge/Firmware-12.70-blue?style=flat-square)
+![](https://img.shields.io/badge/Release-v01.000.003-blueviolet?style=flat-square) ![](https://img.shields.io/badge/PS5%20Hardware-Verified-0070d1?style=flat-square&logo=playstation&logoColor=white) ![](https://img.shields.io/badge/Firmware-12.70-blue?style=flat-square)
+
+**01.000.003:** the pauses of silence the app sends between format changes were four times too long on the TrueHD port, because its 768 kHz label is not the rate it really consumes frames at (192 kHz). They are now the intended length. The READMEs and the write-up also say plainly that Speaker Lab is EVO Player's Surround Sound Studio and that TrueHD works.
 
 **01.000.002:** Dolby TrueHD now plays. It goes out as a MAT bitstream on a 768 kHz port, opened with the console's system audio calls (`sceAudioOutSysOpen` and `sceAudioOutSysConfigureOutput`), the route Sony's Blu-ray player uses. Hardware-tested on a PS5 Pro, firmware 12.70: it plays and the receiver shows "Dolby Audio".
 
